@@ -109,7 +109,7 @@
     <div id="username-screen" class="active">
         <h2>Enter Your Username</h2>
         <input id="username-input" type="text" placeholder="Your name" maxlength="20">
-        <button id="submit-username" onclick="setUsername()">Submit</button>
+        <button id="submit-username" onclick="setUsername(event)">Submit</button>
     </div>
     <div id="lobby-screen">
         <h2>Lobby</h2>
@@ -130,7 +130,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <script>
-        const socket = io('https://jeopardy-game-dcau.onrender.com', {
+        const socket = io(window.location.origin, {
             transports: ['websocket'],
             reconnection: false
         });
@@ -139,7 +139,7 @@
         const progressBar = document.getElementById('progress-bar');
 
         socket.on('connect', () => {
-            console.log('Client connected to SocketIO');
+            console.log('Client connected to SocketIO at:', window.location.origin);
         });
 
         socket.on('connect_error', (error) => {
@@ -216,7 +216,8 @@
             }).join('<br>');
         });
 
-        function setUsername() {
+        function setUsername(event) {
+            event.preventDefault(); // Prevent page reload
             const username = document.getElementById('username-input').value.trim();
             if (username) {
                 console.log(`Emitting set_username with: ${username}`);
