@@ -130,7 +130,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <script>
-        const socket = io('http://192.168.0.24:5000', {
+        const socket = io('https://jeopardy-game-dcau.onrender.com', {
             transports: ['websocket'],
             reconnection: false
         });
@@ -197,6 +197,7 @@
         });
 
         socket.on('request_username', () => {
+            console.log('Received request_username');
             document.getElementById('username-input').style.display = 'block';
             document.getElementById('submit-username').style.display = 'block';
         });
@@ -208,6 +209,7 @@
         });
 
         socket.on('update_lobby', (data) => {
+            console.log('Received update_lobby:', data);
             const lobbyPlayers = document.getElementById('lobby-players');
             lobbyPlayers.innerHTML = Object.entries(data.players).map(([id, player]) => {
                 return `${player.username} ${player.ready ? '(Ready)' : '(Not Ready)'}`;
@@ -217,10 +219,10 @@
         function setUsername() {
             const username = document.getElementById('username-input').value.trim();
             if (username) {
+                console.log(`Emitting set_username with: ${username}`);
                 socket.emit('set_username', { username });
                 document.getElementById('username-input').style.display = 'none';
                 document.getElementById('submit-username').style.display = 'none';
-                console.log(`Username submitted: ${username}`);
             }
         }
 

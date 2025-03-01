@@ -41,12 +41,12 @@ def index():
 def handle_connect(auth):
     sid = request.sid
     print(f"DEBUG: Player {sid} connected. Current players: {list(players.keys())}")
-    players[sid] = {"username": sid[:4], "score": 0, "ready": False}  # Default to ID slice for now
+    players[sid] = {"username": sid[:4], "score": 0, "ready": False}
     player_count = len(players)
     print(f"DEBUG: Emitting player_count: {player_count}")
     emit('player_count', player_count, broadcast=True)
     emit('update_lobby', {'players': {k: {'username': v['username'], 'ready': v['ready']} for k, v in players.items()}}, broadcast=True)
-    emit('request_username', to=sid)  # Request username on connect
+    emit('request_username', to=sid)
     if len(players) == 2 and all(p['ready'] for p in players.values()) and not current_question:
         print("DEBUG: All players ready, initiating first question")
         game_started = True
