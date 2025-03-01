@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mobile Jeopardy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        #username-screen, #lobby-screen, #game-screen {
+            display: none;
+            width: 90%;
+            max-width: 400px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            flex-direction: column;
+            align-items: center;
+        }
+        #username-screen.active, #lobby-screen.active, #game-screen.active {
+            display: flex;
+        }
+        #players, #question, #result, #score, #lobby-players {
+            font-size: 24px;
+            margin: 10px 0;
+            color: #333;
+        }
+        #question {
+            font-size: 28px;
+            font-weight: bold;
+            min-height: 80px;
+            word-wrap: break-word;
+        }
+        #answer-btn {
+            font-size: 22px;
+            padding: 15px 30px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #answer-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #answer-btn:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        #answer-input, #username-input {
+            font-size: 20px;
+            padding: 10px;
+            width: 80%;
+            margin-top: 10px;
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+        }
+        #result {
+            font-size: 22px;
+            color: #d32f2f;
+            transition: opacity 0.5s;
+        }
+        #progress {
+            width: 100%;
+            height: 10px;
+            background-color: #ddd;
+            margin-top: 15px;
+        }
+        #progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0;
+            transition: width 1s linear;
+        }
+        #score {
+            font-size: 20px;
+        }
+        #submit-username, #ready-btn {
+            font-size: 18px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        #submit-username:hover, #ready-btn:hover {
+            background-color: #45a049;
+        }
+        @media (max-width: 600px) {
+            #question { font-size: 24px; }
+            #players, #score, #lobby-players { font-size: 20px; }
+            #answer-btn { padding: 12px 25px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="username-screen" class="active">
+        <h2>Enter Your Username</h2>
+        <input id="username-input" type="text" placeholder="Your name" maxlength="20">
+        <button id="submit-username" onclick="setUsername()">Submit</button>
+    </div>
+    <div id="lobby-screen">
+        <h2>Lobby</h2>
+        <div id="lobby-players"></div>
+        <button id="ready-btn" onclick="setReady()">Ready</button>
+    </div>
+    <div id="game-screen">
+        <div id="players">Players: 0</div>
+        <div id="question"></div>
+        <button id="answer-btn" onclick="buzz()" disabled>Answer</button>
+        <input id="answer-input" type="text" placeholder="Type answer" onkeydown="if(event.key === 'Enter') submitAnswer()">
+        <div id="result"></div>
+        <div id="score">Score: 0</div>
+        <div id="progress">
+            <div id="progress-bar"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script>
+        const socket = io('http://192.168.0.24:5000', {
+            transports: ['websocket'],
+            reconnection: false
+        });
+        let myScore = 0;
+        let progress = 0;
+        const progressBar = document.getElementById('progress-bar');
+
+        socket.on('connect', () => {
+            console.log('Client connected to SocketIO');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('SocketIO connection error:', error.message);
+        });
+
+        socket.on('player_count', (count) => {
+            document.getElementById('players').innerText = `Players: ${count}`;
+            console.log(`Received player_count: ${count}`);
+            if (count == 2) {
+                console.log('Two players connected, waiting for question...');
+            }
+        });
+
+        socket.on('new_question', (text) => {
+            document.getElementById('question').innerText = text;
+            document.getElementById('answer-btn').disabled = false;
+            document.getElementById('answer-input').style.display = 'none';
+            document.getElementById('result').innerText = '';
+            progress = 0;
+            progressBar.style.width = '0%';
+            startProgressBar();
+            document.getElementById('lobby-screen').classList.remove('active');
+            document.getElementById('game-screen').classList.add('active');
+            console.log(`Received new question: ${text}`);
+        });
+
+        socket.on('buzzed', (data) => {
+            document.getElementById('answer-btn').disabled = true;
+            document.getElementById('result').innerText = `Player ${data.player.slice(0, 4)} buzzed in!`;
+            stopProgressBar();
+            console.log(`Buzzed by: ${data.player.slice(0, 4)}`);
+        });
+
+        socket.on('answer_prompt', () => {
+            document.getElementById('answer-input').style.display = 'block';
+            document.getElementById('answer-input').focus();
+            console.log('Answer prompt received');
+        });
+
+        socket.on('result', (data) => {
+            document.getElementById('result').innerText = `Player ${data.player.slice(0, 4)} was ${data.correct ? 'correct!' : 'wrong!'}`;
+            document.getElementById('result').style.color = data.correct ? '#2e7d32' : '#d32f2f';
+            if (data.player === socket.id) myScore = (myScore || 0) + (data.correct ? 10 : -5);
+            document.getElementById('score').innerText = `Score: ${myScore}`;
+            stopProgressBar();
+            console.log(`Result: ${data.player.slice(0, 4)} was ${data.correct ? 'correct' : 'wrong'}`);
+        });
+
+        socket.on('game_over', (message) => {
+            document.getElementById('question').innerText = message;
+            document.getElementById('answer-btn').disabled = true;
+            stopProgressBar();
+            console.log(`Game over: ${message}`);
+        });
+
+        socket.on('request_username', () => {
+            document.getElementById('username-input').style.display = 'block';
+            document.getElementById('submit-username').style.display = 'block';
+        });
+
+        socket.on('username_set', (data) => {
+            console.log(`Username set for player ${data.player_id}: ${data.username}`);
+            document.getElementById('username-screen').classList.remove('active');
+            document.getElementById('lobby-screen').classList.add('active');
+        });
+
+        socket.on('update_lobby', (data) => {
+            const lobbyPlayers = document.getElementById('lobby-players');
+            lobbyPlayers.innerHTML = Object.entries(data.players).map(([id, player]) => {
+                return `${player.username} ${player.ready ? '(Ready)' : '(Not Ready)'}`;
+            }).join('<br>');
+        });
+
+        function setUsername() {
+            const username = document.getElementById('username-input').value.trim();
+            if (username) {
+                socket.emit('set_username', { username });
+                document.getElementById('username-input').style.display = 'none';
+                document.getElementById('submit-username').style.display = 'none';
+                console.log(`Username submitted: ${username}`);
+            }
+        }
+
+        function setReady() {
+            socket.emit('set_ready');
+            console.log('Ready status toggled');
+        }
+
+        function buzz() {
+            socket.emit('buzz');
+            console.log('Buzz emitted');
+        }
+
+        function submitAnswer() {
+            const answer = document.getElementById('answer-input').value;
+            socket.emit('submit_answer', { answer });
+            document.getElementById('answer-input').value = '';
+            document.getElementById('answer-input').style.display = 'none';
+            console.log('Answer submitted:', answer);
+        }
+
+        function startProgressBar() {
+            window.progressInterval = setInterval(() => {
+                if (progress < 100) {
+                    progress += 1;
+                    progressBar.style.width = `${progress}%`;
+                } else {
+                    clearInterval(window.progressInterval);
+                    document.getElementById('answer-btn').disabled = true;
+                    socket.emit('timeout');
+                    console.log('Timeout emitted');
+                }
+            }, 100);
+        }
+
+        function stopProgressBar() {
+            progressBar.style.width = '0%';
+            progress = 0;
+            clearInterval(window.progressInterval);
+        }
+    </script>
+</body>
+</html>
